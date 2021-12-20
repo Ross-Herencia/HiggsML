@@ -42,26 +42,26 @@ class PNN:
 
     def load_data(self, trial=False, validating=False, testing=False):
 
-        if (trial == False) & (validating == False) & (testing == False):
+        if (not trial) & (not validating) & (not testing):
             print('No data has been selected. Set at least one of trial, validating or testing = True.')
             exit(1)
 
-        with open('data_dict.pkl', 'rb') as f:
+        with open('..//data_dict.pkl', 'rb') as f:
             data = pickle.load(f)
 
         # data = {key: x, y, weights, ...}
 
         keys = list(data.keys())
 
-        if trial == True:
+        if trial:
             self.train_data = data['train']
             self.val_data = data['val']
 
-        if validating == True:
+        if validating:
             self.val_data = data['val']
             self.validating = {key: data[key] for key in keys[3:16]}
 
-        if testing == True:
+        if testing:
             self.testing = {key: data[key] for key in keys[16:]}
 
         del data

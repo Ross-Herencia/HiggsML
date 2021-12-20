@@ -21,8 +21,9 @@ for lr in lrs:
         for hidden_layer in hidden_layers:
             for gamma in gammas:
                 print(f'Trial {n}/{n_trials}')
-                train_history, val_history, sigma = pnn.train_validate(hidden_size, hidden_layer, 'sgd', 2, lr,
+                train_history, val_history, sigma = pnn.train_validate(hidden_size, hidden_layer, 'sgd', 5, lr,
                                                                        500, 'relu', gamma)
+
                 train_last = train_history[-1]
                 val_last = val_history[-1]
                 train_history.sort(key=lambda tupl: tupl[1])
@@ -30,9 +31,11 @@ for lr in lrs:
                 train_best = train_history[0]
                 val_best = val_history[0]
 
-                results = results.append({'configuration': f'lr = {lr}, hidden_size = {hidden_size},'
-                                                           f' hidden_layers = {hidden_layer}, gamma = {gamma}',
+                results = results.append({'configuration': f'lr = {lr}, h_s = {hidden_size},'
+                                                           f' h_l = {hidden_layer}, gamma = {gamma}',
                                           'significance': sigma, 'train_last': train_last, 'train_best': train_best,
                                           'val_last': val_last, 'val_best': val_best}, ignore_index=True)
+
                 n += 1
 
+print(results)
