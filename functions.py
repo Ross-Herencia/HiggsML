@@ -58,7 +58,7 @@ def plot_loss(loss_list, legend_labels, log_scale=False, plot_name='loss'):
     plt.savefig(f'{plot_name}.png')
 
 
-def plot_significance(s, b, sigma, line=False, bar=True):
+def plot_significance_dist(s, b, sigma, line=False, bar=True):
     x = np.arange(0, 1, 1/len(s))
     if bar:
         plt.bar(x, s, width=1/len(s), align='edge', label='signal', color='red', alpha=0.7)
@@ -70,5 +70,13 @@ def plot_significance(s, b, sigma, line=False, bar=True):
     plt.ylabel('significance')
     plt.legend()
     plt.title(f'sigma = {sigma}')
-    plt.savefig(f'significance_{sigma}.png')
+    plt.savefig(f'significance_dist_{sigma}.png')
     # plt.show()
+
+
+def plot_significance_curve(path, significances):
+    signal_mass = [300, 420, 440, 460, 500, 600, 700, 800, 900, 1000, 1400, 1600, 2000]
+    plt.plot(signal_mass, significances)
+    plt.xlabel('signal mass')
+    plt.ylabel('significance')
+    plt.savefig(path)

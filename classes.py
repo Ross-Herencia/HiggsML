@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import pickle
-from functions import significance
+from functions import significance, plot_significance_dist, plot_significance_curve
 
 
 class NN(nn.Module):
@@ -49,7 +49,7 @@ class PNN:
         with open('..//data_dict.pkl', 'rb') as f:
             data = pickle.load(f)
 
-        # data = {key: x, y, weights, ...}
+        # data = {key: [x, y, weights], ...}
 
         keys = list(data.keys())
 
@@ -66,12 +66,14 @@ class PNN:
 
         del data
 
-    def train_validate(self, hidden_size, hidden_layers, optimisation_function, n_epochs,
-                       lr, batch_size, activation_function, gamma):
+    def train_validate(self, hidden_size, hidden_layers, n_epochs, lr, gamma, early_stopping=10, reset_limit=10):
 
         # Default hyperparameters which will remain fixed
         input_size = 20
         output_size = 1
+        optimisation_function = 'sgd'
+        batch_size = 500
+        activation_function = 'relu'
 
         # Storage
         train_history = []
@@ -79,6 +81,9 @@ class PNN:
         prob_weights_labels = np.zeros((len(self.val_data[0]), 3))
         prob_weights_labels.fill(np.nan)
         count = 0
+        reset_count = 0
+        early_stop = 0
+        val_best = 99.0
 
         # Model initialisation
         model = NN(input_size, hidden_size, hidden_layers, activation_function, output_size)
@@ -121,10 +126,22 @@ class PNN:
             val_history.append((epoch + 1, val_loss))
 
             # Early stopping
-            if (epoch > 0) & (train_history[epoch][1] >= train_history[epoch - 1][1]):
+            if (epoch > 0) & (val_history[epoch][1] >= val_history[epoch - 1][1]):
                 count += 1
-                if count == 10:
+                if count == early_stopping:
+                    early_stop = 1
                     break
+            elif (count > 0) & (val_history[epoch][1] < val_best):
+                count = 0   # reset counter if there is improvement again
+                reset_count += 1
+            if reset_count >= reset_limit:
+                early_stop = 2  # oscillating validation loss
+                break
+
+            # Save best validation loss model
+            if (epoch > 0) & (val_history[epoch][1] < val_best):
+                val_best = val_history[-1][1]
+                best_state = {'state': model.state_dict(), 'val_best': val_best}
 
             scheduler.step()
 
@@ -133,4 +150,47 @@ class PNN:
         prob_weights_labels[:, 2] = labels
         s, b, sigma = significance(prob_weights_labels)
 
-        return train_history, val_history, sigma
+        final_state = {'state': model.state_dict(), 'sigma': sigma}
+
+        return train_history, val_history, sigma, early_stop, best_state, final_state
+
+# \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Finish + Test ////////////////////////////////////////////////////
+    def validate(self, path, all_data=True,  ):
+        model = NN(input_size, hidden_size, hidden_layers, activation_function, output_size)
+        model.load_state_dict(path)
+
+        significances = []
+
+        model.eval()
+        with torch.no_grad:
+            prob_weights_labels = np.zeros((len(self.val_data[0]), 3))
+
+            batch = self.val_data[0]
+            labels = self.val_data[1]
+            weights = self.val_data[2]
+
+            out = model(batch)
+
+            prob_weights_labels[:, 0] = out[:, 0]
+            prob_weights_labels[:, 1] = weights
+            prob_weights_labels[:, 2] = labels
+            s, b, sigma = significance(prob_weights_labels)
+
+            plot_significance_dist(s, b, sigma)
+
+            for key, value in self.validating:
+                prob_weights_labels = np.zeros((len(value[0]), 3))
+                batch = value[0]
+                labels = value[1]
+                weights = value[2]
+
+                out = model(batch)
+                prob_weights_labels[:, 0] = out[:, 0]
+                prob_weights_labels[:, 1] = weights
+                prob_weights_labels[:, 2] = labels
+
+                s, b, sigma = significance(prob_weights_labels)
+                significances.append(sigma)
+
+            plot_significance_curve('X.png', significances)  # SET PATH
+
