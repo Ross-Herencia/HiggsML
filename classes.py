@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 import pickle
-from functions import significance, plot_significance_dist, plot_significance_curve
+from functions import significance
+import matplotlib.pyplot as plt
 
 
 class NN(nn.Module):
@@ -21,7 +22,7 @@ class NN(nn.Module):
             input = hidden_size
         self.layers.append(nn.Linear(input, output_size))
 
-        activation_funcs = {'relu': nn.ReLU(), 'selu': nn.SELU()}
+        activation_funcs = {'relu': nn.ReLU(), 'selu': nn.SELU(), 'lrelu': nn.LeakyReLU(), 'prelu': nn.PReLU()}
         self.activation = activation_funcs[activation_function]
         self.sigmoid = nn.Sigmoid()
 
@@ -46,7 +47,9 @@ class PNN:
             print('No data has been selected. Set at least one of trial, validating or testing = True.')
             exit(1)
 
-        with open('..//data_dict.pkl', 'rb') as f:
+        # with open('..//data_dict.pkl', 'rb') as f:    # PC
+        with open('./data_dict.pkl', 'rb') as f:    # Server
+
             data = pickle.load(f)
 
         # data = {key: [x, y, weights], ...}
@@ -66,20 +69,19 @@ class PNN:
 
         del data
 
-    def train_validate(self, hidden_size, hidden_layers, n_epochs, lr, gamma, early_stopping=10, reset_limit=10):
+    def train_validate(self, hidden_size, hidden_layers, activation_function, n_epochs, lr, gamma, early_stopping=10, reset_limit=10):
 
         # Default hyperparameters which will remain fixed
         input_size = 20
         output_size = 1
         optimisation_function = 'sgd'
         batch_size = 500
-        activation_function = 'relu'
+        # activation_function = 'relu'
 
         # Storage
         train_history = []
         val_history = []
         prob_weights_labels = np.zeros((len(self.val_data[0]), 3))
-        prob_weights_labels.fill(np.nan)
         count = 0
         reset_count = 0
         early_stop = 0
@@ -109,7 +111,7 @@ class PNN:
                 loss.backward()
                 optimiser.step()
 
-            train_history.append((epoch + 1, train_loss / np.ceil(len(self.train_data[0]) / batch_size)))
+            train_history.append(train_loss / np.ceil(len(self.train_data[0]) / batch_size))
 
             model.eval()
             val_loss = 0
@@ -123,15 +125,15 @@ class PNN:
                 loss = loss_fn(out, labels.unsqueeze(1))
                 val_loss += loss.item()
 
-            val_history.append((epoch + 1, val_loss))
+            val_history.append(val_loss)
 
             # Early stopping
-            if (epoch > 0) & (val_history[epoch][1] >= val_history[epoch - 1][1]):
+            if (epoch > 0) & (val_history[epoch] >= val_history[epoch - 1]):
                 count += 1
                 if count == early_stopping:
                     early_stop = 1
                     break
-            elif (count > 0) & (val_history[epoch][1] < val_best):
+            elif (count > 0) & (val_history[epoch] < val_best):
                 count = 0   # reset counter if there is improvement again
                 reset_count += 1
             if reset_count >= reset_limit:
@@ -139,8 +141,8 @@ class PNN:
                 break
 
             # Save best validation loss model
-            if (epoch > 0) & (val_history[epoch][1] < val_best):
-                val_best = val_history[-1][1]
+            if (epoch > 0) & (val_history[epoch] < val_best):
+                val_best = val_history[-1]
                 best_state = {'state': model.state_dict(), 'val_best': val_best}
 
             scheduler.step()
@@ -148,37 +150,32 @@ class PNN:
         prob_weights_labels[:, 0] = out[:, 0]
         prob_weights_labels[:, 1] = weights
         prob_weights_labels[:, 2] = labels
-        s, b, sigma = significance(prob_weights_labels)
+        s, b, sigma = significance(prob_weights_labels, 10)
 
         final_state = {'state': model.state_dict(), 'sigma': sigma}
 
         return train_history, val_history, sigma, early_stop, best_state, final_state
 
-# \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Finish + Test ////////////////////////////////////////////////////
-    def validate(self, path, all_data=True,  ):
+
+    def validate(self, model_path, hidden_size, hidden_layers):
+        input_size = 20
+        activation_function = 'relu'
+        output_size = 1
         model = NN(input_size, hidden_size, hidden_layers, activation_function, output_size)
-        model.load_state_dict(path)
+        model.load_state_dict(torch.load(model_path))
 
         significances = []
+        significances_norms = []
+        rows = 5
+        cols = 3
+        plt.rcParams.update({'font.size': 30})
 
+        fig, ax = plt.subplots(rows, cols, figsize=(50, 50))
+        i = 0
+        j = 0
         model.eval()
-        with torch.no_grad:
-            prob_weights_labels = np.zeros((len(self.val_data[0]), 3))
-
-            batch = self.val_data[0]
-            labels = self.val_data[1]
-            weights = self.val_data[2]
-
-            out = model(batch)
-
-            prob_weights_labels[:, 0] = out[:, 0]
-            prob_weights_labels[:, 1] = weights
-            prob_weights_labels[:, 2] = labels
-            s, b, sigma = significance(prob_weights_labels)
-
-            plot_significance_dist(s, b, sigma)
-
-            for key, value in self.validating:
+        with torch.no_grad():
+            for key, value in self.validating.items():
                 prob_weights_labels = np.zeros((len(value[0]), 3))
                 batch = value[0]
                 labels = value[1]
@@ -191,6 +188,35 @@ class PNN:
 
                 s, b, sigma = significance(prob_weights_labels)
                 significances.append(sigma)
+                x = np.arange(0, 1, 1 / len(s))
+                width = 1 / len(s)
+                ax[i, j].bar(x, s, width=width, align='edge', label='signal', color='red', alpha=0.5)
+                ax[i, j].bar(x, b, width=width, align='edge', label='background', color='blue', alpha=0.5)
+                ax[i, j].set_title(f'{key}')
+                ax[i, j].set_yscale('log')
 
-            plot_significance_curve('X.png', significances)  # SET PATH
+                j += 1
+                if j == cols:
+                    j = 0
+                    i += 1
 
+                s, b, sigma = significance(prob_weights_labels, normalise=True)
+                significances_norms.append(sigma)
+
+            for axs in ax.flat:
+                axs.set(xlabel='probability', ylabel='weight')
+
+            # Hide x labels and tick labels for top plots and y ticks for right plots.
+            # for axs in ax.flat:
+            #     axs.label_outer()
+
+            signal_mass = [300, 420, 440, 460, 500, 600, 700, 800, 900, 1000, 1400, 1600, 2000]
+            ax[4, 1].plot(signal_mass, significances)
+            ax[4, 1].scatter(signal_mass, significances, c='red')
+            ax[4, 2].plot(signal_mass, significances_norms)
+            ax[4, 2].scatter(signal_mass, significances_norms, c='red')
+            ax[4, 2].set_title('Signal Normalised')
+            for axs in (ax[4, 1], ax[4, 2]):
+                axs.set(xlabel='signal mass', ylabel='significance')
+            fig.tight_layout()
+            plt.show()

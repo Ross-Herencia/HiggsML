@@ -61,21 +61,22 @@ def post_process2(df):
 
 
 # new: adding a column with the true mass of A for all instances
-def add_param(df, mass):
-    df['mAtrue'] = mass
-    return df
+# def add_param(df, mass):
+#     df['mAtrue'] = mass
+#     return df
 
 
-def separate_masses(data_dict, signal, bkg, masses, val=True):
+def separate_masses(data_dict, sig, bkg, masses, val=True):
     for mass in masses:
-        temp_signal = signal[signal['mAtrue'] == mass]
+        temp_signal = sig[sig['mAtrue'] == mass]
         temp_y = len(bkg) * [0] + len(temp_signal) * [1]
+        bkg.loc[:, 'mAtrue'] = mass
         temp_x = pd.concat([bkg, temp_signal], ignore_index=True)
         temp_weight = temp_x['weight'].to_numpy()
         temp_x.drop(columns=['weight'], inplace=True)
         temp_x = scaler.transform(temp_x)
         temp_x, temp_y, temp_weight = shuffle(temp_x, temp_y, temp_weight, random_state=0)
-        if val == True:
+        if val:
             data_dict[f'val_{mass}'] = [temp_x, temp_y, temp_weight]
         else:
             data_dict[f'test_{mass}'] = [temp_x, temp_y, temp_weight]
@@ -88,10 +89,11 @@ signal_mass = [300, 420, 440, 460, 500, 600, 700, 800, 900, 1000, 1200, 1400, 16
 signal = pd.DataFrame()
 # filepath = 'Tong_Code_Sample\\'
 
-for each in signal_mass:
-    df_temp = pd.read_csv('C:/Users/Ross/University/Higgs Project/Raw Data/' + str(each) + ".csv", index_col=0)
+for mass in signal_mass:
+    df_temp = pd.read_csv('C:/Users/Ross/University/Higgs Project/Raw Data/' + str(mass) + ".csv", index_col=0)
     df_temp = pre_selection(df_temp)
-    df_temp = add_param(df_temp, each)  # new: add signal mass
+    # df_temp = add_param(df_temp, each)  # new: add signal mass
+    df_temp['mAtrue'] = mass
 
     signal = pd.concat([df_temp, signal], ignore_index=True)
 df_temp = 0
@@ -99,7 +101,8 @@ df_temp = 0
 background = pd.read_csv("C:/Users/Ross/University/Higgs Project/Raw Data/background.csv", index_col=0)
 background = pre_selection(background)
 
-background = add_param(background, signal_mass[np.random.randint(0, len(signal_mass))])  # new: random signal mass
+signal_mass = [300, 420, 440, 460, 500, 600, 700, 800, 900, 1000, 1400, 1600, 2000]  # Excluding 1200 (blind mass)
+background['mAtrue'] = np.random.choice(signal_mass, len(background))  # Add random mass parameter from list
 
 # post process samples
 post_process1(signal)
@@ -108,8 +111,8 @@ signal = post_process2(signal)
 background = post_process2(background)
 
 # save files
-# signal.to_csv('signal.csv')
-# background.to_csv('background.csv')
+signal.to_csv('signal.csv')
+background.to_csv('background.csv')
 
 # remove blind mass
 blind_signal = signal[signal['mAtrue'] == 1200]
@@ -123,7 +126,7 @@ val_bkg, test_bkg = train_test_split(val_test_bkg, test_size=0.5, random_state=2
 
 # prepare training set
 train_y = len(train_bkg) * [0] + len(train_signal) * [1]
-train_signal["weight"] *= np.sum(train_bkg["weight"]) / np.sum(train_signal["weight"])
+train_signal.loc[:, "weight"] *= np.sum(train_bkg["weight"]) / np.sum(train_signal["weight"])
 train_x = pd.concat([train_bkg, train_signal], ignore_index=True)
 train_weight = train_x["weight"].to_numpy()
 train_x.drop(columns=["weight"], inplace=True)
@@ -133,7 +136,7 @@ train_x, train_y, train_weight = shuffle(train_x, train_y, train_weight, random_
 
 # prepare mixed validation set
 val_y = len(val_bkg) * [0] + len(val_signal) * [1]
-val_signal["weight"] *= np.sum(val_bkg["weight"]) / np.sum(val_signal["weight"])
+val_signal.loc[:, "weight"] *= np.sum(val_bkg["weight"]) / np.sum(val_signal["weight"])
 val_x = pd.concat([val_bkg, val_signal], ignore_index=True)
 val_weight = val_x["weight"].to_numpy()
 val_x.drop(columns=["weight"], inplace=True)
@@ -142,7 +145,7 @@ val_x, val_y, val_weight = shuffle(val_x, val_y, val_weight, random_state=0)
 
 # prepare mixed test set
 test_y = len(test_bkg) * [0] + len(test_signal) * [1]
-test_signal['weight'] *= np.sum(test_bkg["weight"]) / np.sum(test_signal["weight"])
+test_signal.loc[:, 'weight'] *= np.sum(test_bkg["weight"]) / np.sum(test_signal["weight"])
 test_x = pd.concat([test_bkg, test_signal], ignore_index=True)
 test_weight = test_x["weight"].to_numpy()
 test_x.drop(columns=["weight"], inplace=True)
@@ -155,7 +158,7 @@ data['train'] = [train_x, train_y, train_weight]
 data['val'] = [val_x, val_y, val_weight]
 data['test'] = [test_x, test_y, test_weight]
 
-signal_mass = [300, 420, 440, 460, 500, 600, 700, 800, 900, 1000, 1400, 1600, 2000]  # not including 1200
+signal_mass = [300, 420, 440, 460, 500, 600, 700, 800, 900, 1000, 1400, 1600, 2000]  # Excluding 1200 (blind mass)
 
 # prepare separated validation sets
 data = separate_masses(data, val_signal, val_bkg, signal_mass)
@@ -165,7 +168,8 @@ data = separate_masses(data, test_signal, test_bkg, signal_mass, val=False)
 
 # prepare blind signal
 blind_y = len(test_bkg) * [0] + len(blind_signal) * [1]
-blind_signal['weight'] *= np.sum(test_bkg["weight"]) / np.sum(blind_signal["weight"])
+blind_signal.loc[:, 'weight'] *= np.sum(test_bkg["weight"]) / np.sum(blind_signal["weight"])
+test_bkg.loc[:, 'mAtrue'] = 1200
 blind_x = pd.concat([test_bkg, blind_signal], ignore_index=True)
 blind_weight = blind_x["weight"].to_numpy()
 blind_x.drop(columns=["weight"], inplace=True)

@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def significance(prob_weights_labels):
+def significance(prob_weights_labels, bins=10, normalise=False):
     s = []
     b = []
     sigma = 0.0
@@ -11,14 +11,20 @@ def significance(prob_weights_labels):
     expected_signal = prob_weights_labels[signal_mask_label]
     expected_background = prob_weights_labels[background_mask_label]
 
-    signal_mask_prob = (expected_signal[:, 0] >= 0.0) & (expected_signal[:, 0] <= 0.05)
-    background_mask_prob = (expected_background[:, 0] >= 0.0) & (expected_background[:, 0] <= 0.05)
+    if normalise:
+        expected_signal[:, 1] = expected_signal[:, 1] / expected_signal[:, 1].sum()  # Normalisation
+        # expected_background[:, 1] = expected_background[:, 1] / expected_background[:, 1].sum()
+
+    bin_size = 1 / bins
+
+    signal_mask_prob = (expected_signal[:, 0] >= 0.0) & (expected_signal[:, 0] <= bin_size)
+    background_mask_prob = (expected_background[:, 0] >= 0.0) & (expected_background[:, 0] <= bin_size)
     s.append(expected_signal[signal_mask_prob][:, 1].sum())
     b.append(expected_background[background_mask_prob][:, 1].sum())
 
-    for i in np.arange(0.05, 1.0, 0.05):
-        signal_mask_prob = (expected_signal[:, 0] > i) & (expected_signal[:, 0] <= i + 0.1)
-        background_mask_prob = (expected_background[:, 0] > i) & (expected_background[:, 0] <= i + 0.1)
+    for i in np.arange(bin_size, 1, bin_size):
+        signal_mask_prob = (expected_signal[:, 0] > i) & (expected_signal[:, 0] <= i + bin_size)
+        background_mask_prob = (expected_background[:, 0] > i) & (expected_background[:, 0] <= i + bin_size)
         s.append(expected_signal[signal_mask_prob][:, 1].sum())
         b.append(expected_background[background_mask_prob][:, 1].sum())
 
@@ -31,7 +37,7 @@ def significance(prob_weights_labels):
         else:
             sigma += 2 * ((s_i + b_i) * np.log(1 + (s_i / b_i)) - s_i)
 
-    # print(s, '\n', b)
+    # print(s, '\n', len(s))
 
     del expected_signal
     del expected_background
@@ -57,26 +63,3 @@ def plot_loss(loss_list, legend_labels, log_scale=False, plot_name='loss'):
     # plt.show()
     plt.savefig(f'{plot_name}.png')
 
-
-def plot_significance_dist(s, b, sigma, line=False, bar=True):
-    x = np.arange(0, 1, 1/len(s))
-    if bar:
-        plt.bar(x, s, width=1/len(s), align='edge', label='signal', color='red', alpha=0.7)
-        plt.bar(x, b, width=1/len(s), align='edge', label='background', color='blue', alpha=0.7)
-    if line:
-        plt.plot(x, s, label='signal', color='red')
-        plt.plot(x, b, label='background', color='blue')
-    plt.xlabel('probability')
-    plt.ylabel('significance')
-    plt.legend()
-    plt.title(f'sigma = {sigma}')
-    plt.savefig(f'significance_dist_{sigma}.png')
-    # plt.show()
-
-
-def plot_significance_curve(path, significances):
-    signal_mass = [300, 420, 440, 460, 500, 600, 700, 800, 900, 1000, 1400, 1600, 2000]
-    plt.plot(signal_mass, significances)
-    plt.xlabel('signal mass')
-    plt.ylabel('significance')
-    plt.savefig(path)
