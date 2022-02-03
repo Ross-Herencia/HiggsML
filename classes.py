@@ -4,6 +4,7 @@ import numpy as np
 import pickle
 from functions import significance
 import matplotlib.pyplot as plt
+from sklearn.utils import shuffle
 
 
 class NN(nn.Module):
@@ -47,8 +48,8 @@ class PNN:
             print('No data has been selected. Set at least one of trial, validating or testing = True.')
             exit(1)
 
-        # with open('..//data_dict.pkl', 'rb') as f:    # PC
-        with open('./data_dict.pkl', 'rb') as f:    # Server
+        with open('..//data_dict.pkl', 'rb') as f:    # PC
+        # with open('./data_dict.pkl', 'rb') as f:    # Server
 
             data = pickle.load(f)
 
@@ -69,7 +70,7 @@ class PNN:
 
         del data
 
-    def train_validate(self, hidden_size, hidden_layers, activation_function, n_epochs, lr, gamma, early_stopping=10, reset_limit=10):
+    def train_validate(self, hidden_size, hidden_layers, activation_function, n_epochs, lr, gamma, momentum, early_stopping=10, reset_limit=10):
 
         # Default hyperparameters which will remain fixed
         input_size = 20
@@ -89,7 +90,7 @@ class PNN:
 
         # Model initialisation
         model = NN(input_size, hidden_size, hidden_layers, activation_function, output_size)
-        optimiser_funcs = {'sgd': torch.optim.SGD(model.parameters(), lr=lr, momentum=0.7, nesterov=True),
+        optimiser_funcs = {'sgd': torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, nesterov=True),
                            'adam': torch.optim.Adam(model.parameters(), lr=lr)}
         optimiser = optimiser_funcs[optimisation_function]
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimiser, gamma=gamma)
@@ -98,6 +99,9 @@ class PNN:
         for epoch in range(n_epochs):
             model.train()
             train_loss = 0
+            self.train_data[0], self.train_data[1], self.train_data[2] = shuffle(self.train_data[0], self.train_data[1],
+                                                                                 self.train_data[2],
+                                                                                 random_state=np.random.randint(0, 100))
             for a in np.random.permutation(int(np.ceil(len(self.train_data[0]) / batch_size))):
                 batch = self.train_data[0][a * batch_size: (a + 1) * batch_size, :]
                 labels = self.train_data[1][a * batch_size: (a + 1) * batch_size]
@@ -156,7 +160,6 @@ class PNN:
 
         return train_history, val_history, sigma, early_stop, best_state, final_state
 
-
     def validate(self, model_path, hidden_size, hidden_layers):
         input_size = 20
         activation_function = 'relu'
@@ -194,6 +197,7 @@ class PNN:
                 ax[i, j].bar(x, b, width=width, align='edge', label='background', color='blue', alpha=0.5)
                 ax[i, j].set_title(f'{key}')
                 ax[i, j].set_yscale('log')
+                ax[i, j].legend()
 
                 j += 1
                 if j == cols:
@@ -206,10 +210,6 @@ class PNN:
             for axs in ax.flat:
                 axs.set(xlabel='probability', ylabel='weight')
 
-            # Hide x labels and tick labels for top plots and y ticks for right plots.
-            # for axs in ax.flat:
-            #     axs.label_outer()
-
             signal_mass = [300, 420, 440, 460, 500, 600, 700, 800, 900, 1000, 1400, 1600, 2000]
             ax[4, 1].plot(signal_mass, significances)
             ax[4, 1].scatter(signal_mass, significances, c='red')
@@ -220,3 +220,4 @@ class PNN:
                 axs.set(xlabel='signal mass', ylabel='significance')
             fig.tight_layout()
             plt.show()
+        plt.rcParams.update({'font.size': 12})

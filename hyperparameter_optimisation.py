@@ -11,14 +11,15 @@ results = pd.DataFrame(columns=['configuration', 'significance', 'train_last', '
                                 'tb_epoch', 'val_best', 'vb_epoch', 'early_stop'], index=None)
 history_dict = {}
 
-lrs = [1.0, 0.1, 0.01]
-hidden_sizes = [50, 100, 200]
-hidden_layers = [2, 3, 4]
-gammas = [0.9, 0.99, 0.999]
+lrs = [1.4]
+hidden_sizes = [50]
+hidden_layers = [2]
+gammas = [0.999]
 activation_functions = ['relu']
+momentum_values = np.arange(0.1, 1.0, 0.1)
 
 
-n_trials = len(lrs) * len(hidden_sizes) * len(hidden_layers) * len(gammas) * len(activation_functions)
+n_trials = len(lrs) * len(hidden_sizes) * len(hidden_layers) * len(gammas) * len(activation_functions) * len(momentum_values)
 n = 0
 val_best_state = {'state': None, 'val_best': 99, 'trial': 999}
 sigma_best_state = {'state': None, 'sigma': 0, 'trial': 999}
@@ -29,43 +30,42 @@ for lr in lrs:
         for hidden_layer in hidden_layers:
             for gamma in gammas:
                 for activation in activation_functions:
-                    print(f'Trial {n + 1}/{n_trials}')
+                    for momentum in momentum_values:
+                        print(f'Trial {n + 1}/{n_trials}')
 
-                    train_history, val_history, sigma, early_stop, temp_best_state, temp_final_state = pnn.train_validate(hidden_size, hidden_layer, activation, 100,
-                                                                                                    lr, gamma, early_stopping=10, reset_limit=15)
+                        train_history, val_history, sigma, early_stop, temp_best_state, temp_final_state = pnn.train_validate(hidden_size, hidden_layer, activation, 100,
+                                                                                                        lr, gamma, momentum, early_stopping=10, reset_limit=15)
 
-                    history_dict[f'{n}'] = [train_history, val_history]
-                    train_last = train_history[-1]
-                    val_last = val_history[-1]
-                    train_best_epoch = train_history.index(np.min(train_history))
-                    val_best_epoch = val_history.index(np.min(val_history))
-                    train_best = train_history[train_best_epoch]
-                    val_best = val_history[val_best_epoch]
+                        history_dict[f'{n}'] = [train_history, val_history]
+                        train_last = train_history[-1]
+                        val_last = val_history[-1]
+                        train_best_epoch = train_history.index(np.min(train_history))
+                        val_best_epoch = val_history.index(np.min(val_history))
+                        train_best = train_history[train_best_epoch]
+                        val_best = val_history[val_best_epoch]
 
-                    results = results.append({'configuration': f'lr = {lr}, h_s = {hidden_size},'
-                                                f' h_l = {hidden_layer}, gamma = {gamma}, activation = {activation}',
-                                                'significance': sigma, 'train_last': train_last, 'val_last': val_last,
-                                                'last_epoch': len(train_history), 'train_best': train_best,
-                                                'tb_epoch': train_best_epoch + 1, 'val_best': val_best,
-                                                'vb_epoch': val_best_epoch + 1, 'early_stop': early_stop}, ignore_index=True)
+                        results = results.append({'configuration': f'lr = {lr}, h_s = {hidden_size},'
+                                                    f' h_l = {hidden_layer}, gamma = {gamma}, activation = {activation}',
+                                                    'significance': sigma, 'train_last': train_last, 'val_last': val_last,
+                                                    'last_epoch': len(train_history), 'train_best': train_best,
+                                                    'tb_epoch': train_best_epoch + 1, 'val_best': val_best,
+                                                    'vb_epoch': val_best_epoch + 1, 'early_stop': early_stop}, ignore_index=True)
 
-                    if temp_best_state['val_best'] < val_best_state['val_best']:
-                        val_best_state = temp_best_state
-                        val_best_state['trial'] = n  # to match pandas index
+                        if temp_best_state['val_best'] < val_best_state['val_best']:
+                            val_best_state = temp_best_state
+                            val_best_state['trial'] = n  # to match pandas index
 
-                    if temp_final_state['sigma'] > sigma_best_state['sigma']:
-                        sigma_best_state = temp_final_state
-                        sigma_best_state['trial'] = n
+                        if temp_final_state['sigma'] > sigma_best_state['sigma']:
+                            sigma_best_state = temp_final_state
+                            sigma_best_state['trial'] = n
 
-                    n += 1
-                    results.to_csv('01-results.csv')
-                    with open('01-history_dict.pkl', 'wb') as f:
-                        pickle.dump(history_dict, f)
-
-                    # print(results)
+                        n += 1
+                        results.to_csv('00-results.csv')
+                        with open('00-history_dict.pkl', 'wb') as f:
+                            pickle.dump(history_dict, f)
 
 
 n = val_best_state['trial']  # Save trial number to cross-check with results that the correct state has been saved
-torch.save(val_best_state['state'], f'01-val_best_state_{n}.pth')
+torch.save(val_best_state['state'], f'00-val_best_state_{n}.pth')
 n = sigma_best_state['trial']
-torch.save(sigma_best_state['state'], f'01-sigma_best_state_{n}.pth')
+torch.save(sigma_best_state['state'], f'00-sigma_best_state_{n}.pth')
