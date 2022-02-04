@@ -42,13 +42,13 @@ class PNN:
         self.validating = {}
         self.testing = {}
 
-    def load_data(self, trial=False, validating=False, testing=False):
+    def load_data(self, data_dict_filepath,trial=False, validating=False, testing=False):
 
         if (not trial) & (not validating) & (not testing):
             print('No data has been selected. Set at least one of trial, validating or testing = True.')
             exit(1)
 
-        with open('..//data_dict.pkl', 'rb') as f:    # PC
+        with open(data_dict_filepath, 'rb') as f:    # PC
         # with open('./data_dict.pkl', 'rb') as f:    # Server
 
             data = pickle.load(f)
@@ -158,9 +158,9 @@ class PNN:
 
         final_state = {'state': model.state_dict(), 'sigma': sigma}
 
-        return train_history, val_history, sigma, early_stop, best_state, final_state
+        return [train_history, val_history, sigma, early_stop, best_state, final_state]
 
-    def validate(self, model_path, hidden_size, hidden_layers):
+    def validate(self, model_path, hidden_size, hidden_layers, plot_filename):
         input_size = 20
         activation_function = 'relu'
         output_size = 1
@@ -189,7 +189,7 @@ class PNN:
                 prob_weights_labels[:, 1] = weights
                 prob_weights_labels[:, 2] = labels
 
-                s, b, sigma = significance(prob_weights_labels)
+                s, b, sigma = significance(prob_weights_labels, bins=20)
                 significances.append(sigma)
                 x = np.arange(0, 1, 1 / len(s))
                 width = 1 / len(s)
@@ -219,5 +219,6 @@ class PNN:
             for axs in (ax[4, 1], ax[4, 2]):
                 axs.set(xlabel='signal mass', ylabel='significance')
             fig.tight_layout()
-            plt.show()
+            plt.savefig('..//output_temp/' + plot_filename + '.png')
+            # plt.show()
         plt.rcParams.update({'font.size': 12})
