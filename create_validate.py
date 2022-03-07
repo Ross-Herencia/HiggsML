@@ -6,15 +6,6 @@ import torch
 import pickle
 import matplotlib.pyplot as plt
 
-# ----------  To Do  -----------------------
-# Increase signal weights by 10x and decrease by 10x
-# Change relative weights between signal masses (just for training set):
-# 	Sum each signal point to the same value
-# 	Match total signal weight to background - validation plots
-#   Train with first 5 masses
-# Plot histograms
-# -------------------------------------------
-
 # Initialise PNN class
 pnn = PNN()
 
@@ -22,25 +13,26 @@ pnn = PNN()
 results = pd.DataFrame(columns=['configuration', 'significance', 'train_last', 'val_last', 'last_epoch', 'train_best',
                                 'tb_epoch', 'val_best', 'vb_epoch', 'early_stop'], index=None)
 history_dict = {}
-n = 0
+significance_curves = []
+n = 10
 signal_masses = [300, 420, 440, 460, 500, 600, 700, 800, 900, 1000, 1200, 1400, 1600, 2000]
 filepath = '..//output_temp/'    # PC
 # filepath = './output_temp/'        # Server
 
-# config = (signal mass cut-off, normalisation scaling, separate signal normalisation)
-for config in [(None, 1, False), (None, 10, False), (None, 0.1, False), (None, 1, True), (5, 1, False)]:
+trials = [0.0001, 0.001, 0.01, 0.1, 1, 10]
+for scaling in trials:
     # Configure dataset
-    print(f'Making dataset {n}...')
-    make_dataset(f'{filepath}data_dict_{n}.pkl', signal_masses[:config[0]], blind_mass=1200,
-                 scale_norm=config[1], validation=True, test=True,
-                 signal_normalisation=config[2])
+    print(f'Making dataset {scaling}...')
+    make_dataset(f'{filepath}data_dict_{scaling}.pkl', signal_masses, blind_mass=1200,
+                 scale_norm=scaling, validation=True, test=True,
+                 signal_normalisation=False)
 
     # load dataset for training
-    pnn.load_data(f'{filepath}data_dict_{n}.pkl', trial=True, validating=True)
+    pnn.load_data(f'{filepath}data_dict_{scaling}.pkl', trial=True, validating=True)
 
     # Train model
     print(f'Training...')
-    output = pnn.train_validate(hidden_size=50, hidden_layers=2, activation_function='relu', n_epochs=5, lr=1.4,
+    output = pnn.train_validate(hidden_size=50, hidden_layers=2, activation_function='relu', n_epochs=50, lr=1.4,
                                 gamma=0.999, momentum=0.7, early_stopping=10, reset_limit=15)
     print('Training complete.')
 
@@ -52,7 +44,7 @@ for config in [(None, 1, False), (None, 10, False), (None, 0.1, False), (None, 1
     final_state = output[5]
 
     # Save model output
-    history_dict[f'{n}'] = [train_history, val_history]
+    history_dict[f'{scaling}'] = [train_history, val_history]
     train_last = train_history[-1]
     val_last = val_history[-1]
     train_best_epoch = train_history.index(np.min(train_history))
@@ -67,20 +59,30 @@ for config in [(None, 1, False), (None, 10, False), (None, 0.1, False), (None, 1
                               'tb_epoch': train_best_epoch + 1, 'val_best': val_best,
                               'vb_epoch': val_best_epoch + 1, 'early_stop': early_stop}, ignore_index=True)
     results.to_csv(f'{filepath}results.csv')
-    with open(f'{filepath}history_dict', 'wb') as f:
+    with open(f'{filepath}history_dict.pkl', 'wb') as f:
         pickle.dump(history_dict, f)
 
-    torch.save(best_state['state'], f'{filepath}best_state_{n}.pth')
-    torch.save(final_state['state'], f'{filepath}final_state_{n}.pth')
-
-    if n == 4:  # Plot later
-        break
+    torch.save(best_state['state'], f'{filepath}best_state_{scaling}.pth')
+    torch.save(final_state['state'], f'{filepath}final_state_{scaling}.pth')
 
     # Plot model output
-    pnn.validate(f'{filepath}best_state_{n}.pth', 50, 2, f'{filepath}output_plot_{n}.png')
+    sig_plot = pnn.validate(f'{filepath}best_state_{scaling}.pth', 50, 2, f'{filepath}output_plot_{scaling}.png')
+    significance_curves.append(sig_plot)
     fig = plt.figure()
-    plt.plot(history_dict[f'{n}'][0], label='signal')
-    plt.plot(history_dict[f'{n}'][1], label='background')
-    plt.savefig(f'{filepath}loss_curves_{n}.png')
+    plt.plot(history_dict[f'{scaling}'][0], label='signal')
+    plt.plot(history_dict[f'{scaling}'][1], label='background')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend()
+    plt.savefig(f'{filepath}loss_curves_{scaling}.png')
     n += 1
     print('Model output saved.')
+
+plt.figure()
+for curve, scaling in zip(significance_curves, trials):
+    plt.plot(signal_masses, curve, label=scaling)
+
+plt.xlabel('signal mass')
+plt.ylabel('significance')
+plt.legend(title='signal weight scaling')
+plt.savefig(f'{filepath}comparison_plot.png')

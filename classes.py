@@ -171,6 +171,7 @@ class PNN:
         significances_norms = []
         rows = 5
         cols = 3
+
         plt.rcParams.update({'font.size': 30})
 
         fig, ax = plt.subplots(rows, cols, figsize=(50, 50))
@@ -219,6 +220,39 @@ class PNN:
             for axs in (ax[4, 1], ax[4, 2]):
                 axs.set(xlabel='signal mass', ylabel='significance')
             fig.tight_layout()
-            plt.savefig('..//output_temp/' + plot_filename + '.png')
+            plt.savefig(plot_filename)
             # plt.show()
         plt.rcParams.update({'font.size': 12})
+        return significances_norms
+
+    def test(self, model_path, hidden_size, hidden_layers, plot_filename):
+        input_size = 20
+        activation_function = 'relu'
+        output_size = 1
+        model = NN(input_size, hidden_size, hidden_layers, activation_function, output_size)
+        model.load_state_dict(torch.load(model_path))
+
+        model.eval()
+        with torch.no_grad():
+            for t in range(5):  # Split up the test sets into 5 different sets
+                significances = []
+                for key, value in self.testing.items():
+                    batch = value[0]
+                    labels = value[1]
+                    weights = value[2]
+                    length = len(batch)
+
+                    prob_weights_labels = np.zeros(int(len(value[0]) / 5), 3)
+
+                    split_batch = batch[t * length / 5:(t + 1) * length / 5]
+                    split_labels = labels[t * length / 5:(t + 1) * length / 5]
+                    split_weights = weights[t * length / 5:(t + 1) * length / 5]
+
+                    out = model(split_batch)
+                    prob_weights_labels[:, 0] = out[:, 0]
+                    prob_weights_labels[:, 1] = split_weights
+                    prob_weights_labels[:, 2] = split_labels
+
+                    s, b, sigma = significance(prob_weights_labels, bins=20)
+                    significances.append(sigma)
+
