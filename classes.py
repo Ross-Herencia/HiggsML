@@ -40,6 +40,7 @@ class PNN:
         self.train_data = []
         self.val_data = []
         self.validating = {}
+        self.test_data = []
         self.testing = {}
 
     def load_data(self, data_dict_filepath,trial=False, validating=False, testing=False):
@@ -66,6 +67,7 @@ class PNN:
             self.validating = {key: data[key] for key in keys[3:16]}
 
         if testing:
+            self.test_data = data['test']
             self.testing = {key: data[key] for key in keys[16:]}
 
         del data
@@ -225,7 +227,7 @@ class PNN:
         plt.rcParams.update({'font.size': 12})
         return significances_norms
 
-    def test(self, model_path, hidden_size, hidden_layers, plot_filename):
+    def test(self, model_path, hidden_size, hidden_layers,):
         input_size = 20
         activation_function = 'relu'
         output_size = 1
@@ -234,25 +236,44 @@ class PNN:
 
         model.eval()
         with torch.no_grad():
-            for t in range(5):  # Split up the test sets into 5 different sets
-                significances = []
-                for key, value in self.testing.items():
-                    batch = value[0]
-                    labels = value[1]
-                    weights = value[2]
-                    length = len(batch)
+            significances = []
+            for key, value in self.testing.items():
+                batch = value[0]
+                labels = value[1]
+                weights = value[2]
 
-                    prob_weights_labels = np.zeros(int(len(value[0]) / 5), 3)
+                prob_weights_labels = np.zeros((len(batch), 3))
 
-                    split_batch = batch[t * length / 5:(t + 1) * length / 5]
-                    split_labels = labels[t * length / 5:(t + 1) * length / 5]
-                    split_weights = weights[t * length / 5:(t + 1) * length / 5]
+                out = model(batch)
+                prob_weights_labels[:, 0] = out[:, 0]
+                prob_weights_labels[:, 1] = weights
+                prob_weights_labels[:, 2] = labels
 
-                    out = model(split_batch)
-                    prob_weights_labels[:, 0] = out[:, 0]
-                    prob_weights_labels[:, 1] = split_weights
-                    prob_weights_labels[:, 2] = split_labels
+                s, b, _ = significance(prob_weights_labels, bins=20, normalise=True)  #
+                _, _, sigma = significance(prob_weights_labels, bins=20, normalise=True)
+                significances.append(sigma)
+                x = np.arange(0, 1, 1 / len(s))
+                width = 1 / len(s)
+                plt.bar(x, s, width=width, align='edge', label='signal', color='red', alpha=0.5)
+                plt.bar(x, b, width=width, align='edge', label='background', color='blue', alpha=0.5)
+                plt.yscale('log')
+                plt.xlabel('classifier output')
+                plt.ylabel('weight')
+                if key == 'blind':
+                    title = '1200 (blind)'
+                else:
+                    title = key.split('_')[1]
+                plt.legend(title=fr'$m_A = ${title}')
+                plt.savefig(f'..//output_temp/report_output/pnn_output_{title}.png')
+                plt.savefig(f'..//output_temp/report_output/pnn_output_{title}.pdf')
+                plt.show()
+            signal_mass = [300, 420, 440, 460, 500, 600, 700, 800, 900, 1000, 1400, 1600, 2000]
+            plt.scatter(signal_mass, significances[:-1], c='black')
+            plt.scatter(1200, significances[-1], c='red')
+            plt.xlabel(r'm_A')
+            plt.ylabel('significance')
+            plt.show()
 
-                    s, b, sigma = significance(prob_weights_labels, bins=20)
-                    significances.append(sigma)
+        return significances
+
 

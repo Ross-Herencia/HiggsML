@@ -13,7 +13,7 @@ def significance(prob_weights_labels, bins=10, normalise=False):
 
     if normalise:
         expected_signal[:, 1] = expected_signal[:, 1] / expected_signal[:, 1].sum()  # Normalisation
-        # expected_background[:, 1] = expected_background[:, 1] / expected_background[:, 1].sum()
+        expected_background[:, 1] = expected_background[:, 1] / expected_background[:, 1].sum()  #
 
     bin_size = 1 / bins
 
@@ -34,6 +34,9 @@ def significance(prob_weights_labels, bins=10, normalise=False):
             sigma += 2 * ((s_i + b_i) * np.log(1 + (s_i / b_i)) - s_i)
         elif (s_i == 0.0) & (b_i == 0.0):
             sigma += 0.0
+        elif b_i < 0:
+            b_i = expected_background[:, 1].sum() / len(expected_background)
+            sigma += 2 * ((s_i + b_i) * np.log(1 + (s_i / b_i)) - s_i)
         else:
             sigma += 2 * ((s_i + b_i) * np.log(1 + (s_i / b_i)) - s_i)
 
