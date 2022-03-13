@@ -10,7 +10,13 @@ this addition parameterises the network.
 This project is still under development.
 
 ## Example Output
-<img src="images/example_output.png"> 
+<img src="images/example_output.png">
+This is an example of the neural network output for a selection of mass points. 
+The events are binned according to output probability (1 = signal-like, 
+0 = background-like) and coloured based on whether the true label is signal (red)
+or background (blue); regions of overlap are purple. Each event has an associated
+weight and the total weight of each bin is read off of the vertical axis, which uses
+a log scale.
 
 ## Summary of Implementation and Results
 This is the main component in a third year physics undergraduate research project at
