@@ -60,12 +60,6 @@ def post_process2(df):
     return df
 
 
-# new: adding a column with the true mass of A for all instances
-# def add_param(df, mass):
-#     df['mAtrue'] = mass
-#     return df
-
-
 def separate_masses(data_dict, sig, bkg, masses, scaler_, val=True):
     for mass in masses:
         temp_signal = sig[sig['mAtrue'] == mass]
@@ -89,13 +83,11 @@ def make_dataset(data_dict_filepath, signal_masses, blind_mass=1200, scale_norm=
     # load samples
     signal_mass = signal_masses  # [300, 420, 440, 460, 500, 600, 700, 800, 900, 1000, 1200, 1400, 1600, 2000]
     signal = pd.DataFrame()
-    # filepath = 'Tong_Code_Sample\\'
 
     for mass in signal_mass:
         df_temp = pd.read_csv('C:/Users/Ross/University/Higgs Project/Raw Data/' + str(mass) + ".csv", index_col=0)
         df_temp = pre_selection(df_temp)
-        # df_temp = add_param(df_temp, each)  # new: add signal mass
-        df_temp['mAtrue'] = mass
+        df_temp['mAtrue'] = mass    # Add signal mass for parameterisation
         if signal_normalisation:
             df_temp.loc[:, 'weight'] *= 1/np.sum(df_temp['weight'])
 

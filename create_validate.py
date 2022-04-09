@@ -17,7 +17,7 @@ significance_curves = []
 n = 10
 signal_masses = [300, 420, 440, 460, 500, 600, 700, 800, 900, 1000, 1200, 1400, 1600, 2000]
 filepath = '..//output_temp/'    # PC
-# filepath = './output_temp/'        # Server
+# filepath = './output_temp/'    # Server
 
 trials = [0.0001, 0.001, 0.01, 0.1, 1, 10]
 for scaling in trials:

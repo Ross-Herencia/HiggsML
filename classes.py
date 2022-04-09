@@ -43,7 +43,7 @@ class PNN:
         self.test_data = []
         self.testing = {}
 
-    def load_data(self, data_dict_filepath,trial=False, validating=False, testing=False):
+    def load_data(self, data_dict_filepath, trial=False, validating=False, testing=False):
 
         if (not trial) & (not validating) & (not testing):
             print('No data has been selected. Set at least one of trial, validating or testing = True.')
@@ -79,7 +79,6 @@ class PNN:
         output_size = 1
         optimisation_function = 'sgd'
         batch_size = 500
-        # activation_function = 'relu'
 
         # Storage
         train_history = []
@@ -162,7 +161,7 @@ class PNN:
 
         return [train_history, val_history, sigma, early_stop, best_state, final_state]
 
-    def validate(self, model_path, hidden_size, hidden_layers, plot_filename):
+    def validate(self, model_path, hidden_size, hidden_layers,): # plot_filename):
         input_size = 20
         activation_function = 'relu'
         output_size = 1
@@ -210,6 +209,20 @@ class PNN:
                 s, b, sigma = significance(prob_weights_labels, normalise=True)
                 significances_norms.append(sigma)
 
+                x = np.arange(0, 1, 1 / len(s))
+                width = 1 / len(s)
+                plt.bar(x, s, width=width, align='edge', label='signal', color='red', alpha=0.5)
+                plt.bar(x, b, width=width, align='edge', label='background', color='blue', alpha=0.5)
+
+                plt.yscale('log')
+                plt.xlabel('Classifier output', fontsize=12)
+                plt.ylabel('Arbitrary units', fontsize=12)
+
+                title = key.split('_')[1]
+                plt.legend(title=fr'$m_A = ${title} GeV', fontsize=11)
+                plt.savefig(f'..//Report Plots/section5/1.0_pnn_output_{title}.png')
+                plt.show()
+
             for axs in ax.flat:
                 axs.set(xlabel='probability', ylabel='weight')
 
@@ -222,12 +235,12 @@ class PNN:
             for axs in (ax[4, 1], ax[4, 2]):
                 axs.set(xlabel='signal mass', ylabel='significance')
             fig.tight_layout()
-            plt.savefig(plot_filename)
-            # plt.show()
+            # plt.savefig(plot_filename)
+            plt.show()
         plt.rcParams.update({'font.size': 12})
         return significances_norms
 
-    def test(self, model_path, hidden_size, hidden_layers,):
+    def test(self, model_path, hidden_size, hidden_layers, remove_negatives, positive_bkg):
         input_size = 20
         activation_function = 'relu'
         output_size = 1
@@ -249,23 +262,23 @@ class PNN:
                 prob_weights_labels[:, 1] = weights
                 prob_weights_labels[:, 2] = labels
 
-                s, b, _ = significance(prob_weights_labels, bins=20, normalise=True)  #
-                _, _, sigma = significance(prob_weights_labels, bins=20, normalise=True)
+                s, b, sigma = significance(prob_weights_labels, bins=20, normalise=True,
+                                           remove_negative_weights=remove_negatives, make_positive=positive_bkg)
                 significances.append(sigma)
                 x = np.arange(0, 1, 1 / len(s))
                 width = 1 / len(s)
                 plt.bar(x, s, width=width, align='edge', label='signal', color='red', alpha=0.5)
                 plt.bar(x, b, width=width, align='edge', label='background', color='blue', alpha=0.5)
+
                 plt.yscale('log')
-                plt.xlabel('classifier output')
-                plt.ylabel('weight')
+                plt.xlabel('Classifier output', fontsize=12)
+                plt.ylabel('Arbitrary units', fontsize=12)
                 if key == 'blind':
-                    title = '1200 (blind)'
+                    title = '1200'
                 else:
                     title = key.split('_')[1]
-                plt.legend(title=fr'$m_A = ${title}')
-                plt.savefig(f'..//output_temp/report_output/pnn_output_{title}.png')
-                plt.savefig(f'..//output_temp/report_output/pnn_output_{title}.pdf')
+                plt.legend(title=fr'$m_A = ${title} GeV', fontsize=11)
+                plt.savefig(f'..//Report Plots/section5/1.0_pnn_output_{title}.png')
                 plt.show()
             signal_mass = [300, 420, 440, 460, 500, 600, 700, 800, 900, 1000, 1400, 1600, 2000]
             plt.scatter(signal_mass, significances[:-1], c='black')
